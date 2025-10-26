@@ -14,6 +14,7 @@ The 'ntfy' (pronounce: notify) service is a simple HTTP-based pub-sub notificati
 Useful links:
 \itemize{
   \item \url{https://github.com/jonocarroll/ntfy}
+  \item \url{https://jonocarroll.github.io/ntfy/}
   \item Report bugs at \url{https://github.com/jonocarroll/ntfy/issues}
 }
 
@@ -24,6 +25,7 @@ Useful links:
 Other contributors:
 \itemize{
   \item Andrew Heiss \email{andrew@andrewheiss.com} (\href{https://orcid.org/0000-0002-3948-3914}{ORCID}) [contributor]
+  \item Hadley Wickham \email{h.wickham@gmail.com} (\href{https://orcid.org/0000-0003-4757-117X}{ORCID}) [contributor]
 }
 
 }

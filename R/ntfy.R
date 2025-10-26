@@ -1,30 +1,12 @@
-#' Add basic authorization headers if `auth = TRUE`
-#' @keywords internal
-req_add_auth_if_needed <- function(req, auth, username, password) {
-  if (is.null(auth) || !auth) { return(req) }
-  httr2::req_auth_basic(req, username, password)
-}
+ntfy_request <- function(server, auth, username, password) {
+  req <- httr2::request(server) |>
+    httr2::req_user_agent("ntfy (https://github.com/jonocarroll/ntfy)")
 
-#' Add image to the request body if `image` is present
-#' @keywords internal
-req_add_image_if_needed <- function(req, image) {
-  if (is.null(image)) { return(req) }
-  httr2::req_body_file(req, get_image_path(image))
-}
-
-#' Determine filename of a given image file or ggplot object
-#' @keywords internal
-get_image_path <- function(image) {
-  if (inherits(image, "ggplot")) {
-    requireNamespace("ggplot2", quietly = FALSE)
-    filename <- tempfile(pattern = "gg", fileext = ".png")
-    ggplot2::ggsave(filename, image)
-  } else if (is.character(image)) {
-    stopifnot(file.exists(image))
-    filename <- image
+  if (isTRUE(auth)) {
+    req <- httr2::req_auth_basic(req, username, password)
   }
-  
-  return(filename)
+
+  req
 }
 
 #' Send a Notification
@@ -47,59 +29,69 @@ get_image_path <- function(image) {
 #' @param username username with access to a protected topic.
 #' @param password password with access to a protected topic.
 #'
-#' @return a [httr2::response()] object
-#' 
+#' @return a [httr2::response()] object, invisibly.
+#'
 #' @examplesIf interactive()
 #' # send a message to the default topic ('mytopic')
 #' ntfy_send("test from R!")
-#' 
+#'
 #' # can use tags (emoji)
-#' ntfy_send(message = "sending with tags!", 
+#' ntfy_send(message = "sending with tags!",
 #'           tags = c(tags$cat, tags$dog)
 #' )
-#' 
+#'
 #' @export
-ntfy_send <- function(message  = "test",
-                      title    = NULL,
-                      tags     = NULL,
-                      priority = 3,
-                      actions  = NULL,
-                      click    = NULL,
-                      image    = NULL,
-                      attach   = NULL,
-                      filename = NULL,
-                      delay    = NULL,
-                      email    = NULL,
-                      topic    = ntfy_topic(),
-                      server   = ntfy_server(),
-                      auth     = ntfy_auth(),
-                      username = ntfy_username(),
-                      password = ntfy_password()) {
-
+ntfy_send <- function(
+  message = "test",
+  title = NULL,
+  tags = NULL,
+  priority = 3,
+  actions = NULL,
+  click = NULL,
+  image = NULL,
+  attach = NULL,
+  filename = NULL,
+  delay = NULL,
+  email = NULL,
+  topic = ntfy_topic(),
+  server = ntfy_server(),
+  auth = ntfy_auth(),
+  username = ntfy_username(),
+  password = ntfy_password()
+) {
   payload <- list(
-    message  = message,
+    message = message,
     priority = priority,
-    title    = title,
-    tags     = toString(as.list(tags)),
-    actions  = actions,
-    click    = click,
-    attach   = attach,
+    title = title,
+    tags = toString(as.list(tags)),
+    actions = actions,
+    click = click,
+    attach = attach,
     filename = filename,
-    delay    = delay,
-    email    = email
+    delay = delay,
+    email = email
   )
   payload <- Filter(Negate(is.null), payload)
-  
-  resp <- httr2::request(server) |> 
-    httr2::req_url_path_append(topic) |> 
-    httr2::req_method("POST") |> 
-    httr2::req_user_agent("ntfy (https://github.com/jonocarroll/ntfy)") |> 
-    req_add_auth_if_needed(auth, username, password) |>  
-    httr2::req_headers(!!!payload) |> 
-    req_add_image_if_needed(image) |> 
-    httr2::req_perform()
-  
-  return(resp)
+
+  req <- ntfy_request(server, auth, username, password) |>
+    httr2::req_url_path_append(topic) |>
+    httr2::req_method("POST") |>
+    httr2::req_headers(!!!payload)
+
+  if (!is.null(image)) {
+    if (inherits(image, "ggplot")) {
+      path <- tempfile(pattern = "gg", fileext = ".png")
+      on.exit(unlink(path), add = TRUE)
+      ggplot2::ggsave(path, image, width = 5, height = 5)
+    } else if (is.character(image)) {
+      stopifnot(file.exists(image))
+      path <- image
+    }
+    req <- httr2::req_body_file(req, path)
+  }
+
+  resp <- httr2::req_perform(req)
+  return(invisible(resp))
 }
 
 
@@ -121,107 +113,119 @@ ntfy_send <- function(message  = "test",
 #' ntfy_history(since = "1h")
 #'
 #' @export
-ntfy_history <- function(since    = "all",
-                         topic    = ntfy_topic(),
-                         server   = ntfy_server(),
-                         auth     = ntfy_auth(),
-                         username = ntfy_username(),
-                         password = ntfy_password(),
-                         ...) {
+ntfy_history <- function(
+  since = "all",
+  topic = ntfy_topic(),
+  server = ntfy_server(),
+  auth = ntfy_auth(),
+  username = ntfy_username(),
+  password = ntfy_password(),
+  ...
+) {
   query <- list(
     poll = 1,
     since = since,
     ...
   )
-  
-  resp <- httr2::request(server) |> 
-    httr2::req_url_path_append(topic) |> 
-    httr2::req_url_path_append("json") |> 
-    httr2::req_url_query(!!!query) |> 
-    httr2::req_method("GET") |> 
-    httr2::req_user_agent("ntfy (https://github.com/jonocarroll/ntfy)") |> 
-    req_add_auth_if_needed(auth, username, password) |>
+
+  resp <- ntfy_request(server, auth, username, password) |>
+    httr2::req_url_path_append(topic, "json") |>
+    httr2::req_url_query(!!!query) |>
+    httr2::req_method("GET") |>
     httr2::req_perform()
-  
+
   if (httr2::resp_has_body(resp)) {
     # ntfy returns NDJSON (newline delimited), which has to be handled with
     # jsonlite::stream_in(), which requires it to be a connection object
-    con <- resp |> 
-      httr2::resp_body_raw() |> 
+    con <- resp |>
+      httr2::resp_body_raw() |>
       rawConnection()
     on.exit(close(con))
-    
-    res <- 
-      jsonlite::stream_in(con, simplifyDataFrame = TRUE, verbose = FALSE) |> 
+
+    res <-
+      jsonlite::stream_in(con, simplifyDataFrame = TRUE, verbose = FALSE) |>
       as.data.frame()
   } else {
     message("Server did not return any history.")
     res <- data.frame()
   }
-  
+
   return(res)
 }
 
 
-#' Notify Completion of a Process
+#' Notify on Completion of a Process
+#'
+#' `ntfy_done()` tells you when the code completed, and
+#' `ntfy_done_with_timing()` tells you how long it took.
 #'
 #' @inheritParams ntfy_send
 #' @param x a result (ignored)
 #' @param ... other arguments passed to [ntfy::ntfy_send()]
 #'
-#' @return the input x (for further piping) plus a notification will be sent
-#' 
+#' @return
+#' The input `x` (for further piping). A notification will be sent as a
+#' side-effect.
+#'
 #' @examplesIf interactive()
 #' # report that a process has completed
 #' Sys.sleep(3) |> ntfy_done("Woke up")
-#' 
+#'
+#' # report that a process has completed, and how long it took
+#' Sys.sleep(3) |> ntfy_done_with_timing()
 #' @export
-ntfy_done <- function(x,
-                      message  = paste0("Process completed at ", Sys.time()),
-                      title    = "ntfy_done()",
-                      tags     = "white_check_mark",
-                      topic    = ntfy_topic(),
-                      server   = ntfy_server(),
-                      auth     = ntfy_auth(),
-                      username = ntfy_username(),
-                      password = ntfy_password(),
-                      ...) {
+ntfy_done <- function(
+  x,
+  message = paste0("Process completed at ", format(Sys.time())),
+  title = "ntfy_done()",
+  tags = "white_check_mark",
+  topic = ntfy_topic(),
+  server = ntfy_server(),
+  auth = ntfy_auth(),
+  username = ntfy_username(),
+  password = ntfy_password(),
+  ...
+) {
   ntfy_send(
-    message = message, title = title, tags = tags, 
-    topic = topic, server = server, 
-    username = username, password = password, auth = auth,
-    ...)
+    message = message,
+    title = title,
+    tags = tags,
+    topic = topic,
+    server = server,
+    username = username,
+    password = password,
+    auth = auth,
+    ...
+  )
   x
 }
 
-#' Notify Completion of a Process with Timing
-#'
-#' @inheritParams ntfy_done
-#' @param x expression to be evaluated and timed
-#' @param ... other arguments passed to [ntfy::ntfy_send()]
-#'
-#' @return the result of evaluating x (for further piping) plus a notification will be sent
-#'
-#' @examplesIf interactive()
-#' # report that a process has completed, and how long it took
-#' Sys.sleep(3) |> ntfy_done_with_timing()
-#'
 #' @export
-ntfy_done_with_timing <- function(x,
-                                  message = paste0("Process completed in ", time_result, "s"),
-                                  title = "ntfy_done_with_timing()",
-                                  tags = "stopwatch",
-                                  topic = ntfy_topic(),
-                                  server = ntfy_server(),
-                                  auth = ntfy_auth(),
-                                  username = ntfy_username(),
-                                  password = ntfy_password(),
-                                  ...) {
+#' @rdname ntfy_done
+ntfy_done_with_timing <- function(
+  x,
+  message = paste0("Process completed in ", format(time_result), "s"),
+  title = "ntfy_done_with_timing()",
+  tags = "stopwatch",
+  topic = ntfy_topic(),
+  server = ntfy_server(),
+  auth = ntfy_auth(),
+  username = ntfy_username(),
+  password = ntfy_password(),
+  ...
+) {
   time_result <- system.time(res <- force(x))[3]
+
   ntfy_send(
-    message = message, title = title, tags = tags, 
-    topic = topic, server = server, 
-    username = username, password = password, auth = auth,
-    ...)
+    message = message,
+    title = title,
+    tags = tags,
+    topic = topic,
+    server = server,
+    username = username,
+    password = password,
+    auth = auth,
+    ...
+  )
   x
 }

@@ -4,6 +4,8 @@
 # ntfy <img src="man/figures/logo.png" align="right" height="102" />
 
 <!-- badges: start -->
+
+[![R-CMD-check](https://github.com/jonocarroll/ntfy/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/jonocarroll/ntfy/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
 **ntfy** (pronounce: *notify*) is a simple HTTP-based pub-sub
@@ -22,7 +24,13 @@ but made to work nicely in an R workflow.
 
 ## Installation
 
-You can install the development version of ntfy like so:
+You can install the released version of {ntfy} from CRAN
+
+``` r
+install.packages("ntfy")
+```
+
+You can install the development version of {ntfy} from GitHub:
 
 ``` r
 # install.packages("remotes")
@@ -64,15 +72,13 @@ appear on your device
 ``` r
 library(ntfy)
 ntfy_send("test from R!")
-#> <httr2_response>
-#> POST https://ntfy.sh/jonocarroll_ntfy_testing
-#> Status: 200 OK
-#> Content-Type: application/json
-#> Body: In memory (152 bytes)
 ```
 
-This can be used in many ways. One would be to notify the completion of
-a process. The `ntfy_done()` function sends a notification with the
+This returns the {httr2} response object invisibly, or errors if it was
+unsuccessful.
+
+{ntfy} can be used in many ways. One would be to notify the completion
+of a process. The `ntfy_done()` function sends a notification with the
 (default) body
 
     Process completed at <Sys.time()>
@@ -98,7 +104,7 @@ mtcars |>
 
 which results in a notification on subscribed devices
 
-    Process completed at 2023-07-04 17:00
+    Process completed at 2025-04-15 09:38:21
 
 When using the base R pipe `|>` the piped commands are composed together
 by the parser, so
@@ -133,29 +139,11 @@ which sends the notification
 
     Process completed in 8.003s
 
-Note: the {magrittr} pipe `%>%` works differently and does not compose
-the same way, so this will result in a very short time report. Wrapping
-an entire pipeline with `ntfy_done_with_timing()` will work, though
-
-``` r
-library(magrittr)
-ntfy_done_with_timing(
-  mtcars %>%
-    head() %>% 
-    slow_process()
-)
-#>                    mpg cyl disp  hp drat    wt  qsec vs am gear carb
-#> Mazda RX4         21.0   6  160 110 3.90 2.620 16.46  0  1    4    4
-#> Mazda RX4 Wag     21.0   6  160 110 3.90 2.875 17.02  0  1    4    4
-#> Datsun 710        22.8   4  108  93 3.85 2.320 18.61  1  1    4    1
-#> Hornet 4 Drive    21.4   6  258 110 3.08 3.215 19.44  1  0    3    1
-#> Hornet Sportabout 18.7   8  360 175 3.15 3.440 17.02  0  0    3    2
-#> Valiant           18.1   6  225 105 2.76 3.460 20.22  1  0    3    1
-```
-
-sends
-
-    Process completed in 8.004s
+This service can also be used as a progress indicator via the
+[{progressr}](https://github.com/futureverse/progressr) package - see
+`help("handler_ntfy", package = "progressr")` or
+<https://progressr.futureverse.org/reference/handler_ntfy.html> for more
+details.
 
 If you’re using a topic on a server that requires authentication, you
 can pass `auth = TRUE`, along with a username and password:
@@ -187,7 +175,7 @@ ntfy_send("test from R!")
 ```
 
 The history of the notifications sent can be retrieved as well, with
-control over how far back to search
+control over how far back to search (example output shown)
 
 ``` r
 ntfy_history(since = "1h")
@@ -199,7 +187,7 @@ ntfy_history(since = "1h")
     #> 3 AGXn4q0CirFT 1667990983 message yourSecretTopic
     #>                                    message
     #> 1                             test from R!
-    #> 2 Process completed at 2022-11-09 17:31:03
+    #> 2 Process completed at 2025-04-15 09:38:21
     #> 3              Process completed in 8.003s
 
 ## API
@@ -219,11 +207,6 @@ file)
 
 ``` r
 library(ggplot2)
-#> 
-#> Attaching package: 'ggplot2'
-#> The following object is masked from 'package:base':
-#> 
-#>     is.element
 p <- ggplot(mtcars, (aes(mpg, wt))) + 
   geom_point() + 
   geom_smooth() + 
@@ -231,17 +214,7 @@ p <- ggplot(mtcars, (aes(mpg, wt))) +
 ntfy_send("ggplot2 images in notifications!", 
           tags = c("tada", "chart"),
           image = p)
-#> Saving 7 x 5 in image
 #> `geom_smooth()` using method = 'loess' and formula = 'y ~ x'
-#> <httr2_response>
-#> 
-#> POST https://ntfy.sh/jonocarroll_ntfy_testing
-#> 
-#> Status: 200 OK
-#> 
-#> Content-Type: application/json
-#> 
-#> Body: In memory (335 bytes)
 ```
 
 ## Emoji
@@ -273,11 +246,6 @@ with the tags stored as `tags` for easy auto-complete
 ntfy_send(message = "sending with tags!", 
           tags = c(tags$cat, tags$dog)
 )
-#> <httr2_response>
-#> POST https://ntfy.sh/jonocarroll_ntfy_testing
-#> Status: 200 OK
-#> Content-Type: application/json
-#> Body: In memory (179 bytes)
 ```
 
 The compatible emoji can be shown with
